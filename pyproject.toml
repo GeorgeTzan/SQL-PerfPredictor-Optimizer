@@ -1,0 +1,21 @@
+[project]
+name = "sql_perfpredictor_optimizer"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "An intelligent web tool for SQL query performance prediction and optimization suggestions using Machine Learning over DuckDB."
+readme = "README.md"
+authors = [
+    { name = "Georgios Tzanopoulos", email = "int02846@uoi.gr" }
+]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "duckdb",
+    "plotly",
+    "dash",
+    "scikit-learn",
+    "sqlglot",
+    "pandas",
+    "requests",
+    "dash-table>=5.0.0",
+]
