@@ -1,4 +1,5 @@
-from sqlglot import parse_one, exp
+from sqlglot import exp, parse_one
+
 
 def extract_query_features(query_text: str) -> dict:
     """
@@ -13,11 +14,10 @@ def extract_query_features(query_text: str) -> dict:
         "has_join": False,
         "has_groupby": False,
         "num_tables": 0,
-        
     }
 
     try:
-        parsed_expression = parse_one(query_text, read='duckdb')
+        parsed_expression = parse_one(query_text, read="duckdb")
 
         if parsed_expression.find(exp.Star):
             features["has_select_all"] = True
@@ -38,9 +38,10 @@ def extract_query_features(query_text: str) -> dict:
 
     except Exception as e:
         print(f"Warning: Could not parse query '{query_text[:50]}...'. Error: {e}")
-        pass 
+        pass
 
     return features
+
 
 if __name__ == "__main__":
     # Test cases for the parser
@@ -50,13 +51,13 @@ if __name__ == "__main__":
         "SELECT product_id, SUM(revenue) FROM sales GROUP BY product_id;",
         "SELECT c.customer_name, p.product_name FROM customers c JOIN sales s ON c.customer_id = s.customer_id JOIN products p ON s.product_id = p.product_id WHERE s.revenue > 100;",
         "SELECT count(*) FROM products;",
-        "SELECT a + b FROM some_table;", 
-        "INVALID SQL SYNTAX" 
+        "SELECT a + b FROM some_table;",
+        "INVALID SQL SYNTAX",
     ]
 
     for query in test_queries:
         print(f"\nQuery: {query}")
         feats = extract_query_features(query)
         for k, v in feats.items():
-            if k != "query_text": 
+            if k != "query_text":
                 print(f"  {k}: {v}")

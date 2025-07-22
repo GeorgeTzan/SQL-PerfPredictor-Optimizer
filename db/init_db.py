@@ -1,8 +1,10 @@
-import duckdb
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'analytical_db.duckdb')
-LOG_DB_PATH = os.path.join(os.path.dirname(__file__), 'query_logs.duckdb')
+import duckdb
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "analytical_db.duckdb")
+LOG_DB_PATH = os.path.join(os.path.dirname(__file__), "query_logs.duckdb")
+
 
 def initialize_analytical_db():
     """Initializes the analytical DuckDB database with some sample data."""
@@ -13,25 +15,30 @@ def initialize_analytical_db():
     conn.execute("DROP TABLE IF EXISTS customers;")
 
     # sample tables
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE products (
             product_id INTEGER,
             product_name VARCHAR,
             category VARCHAR,
             price DECIMAL(10, 2)
         );
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE customers (
             customer_id INTEGER,
             customer_name VARCHAR,
             city VARCHAR,
             country VARCHAR
         );
-    """)
+    """
+    )
 
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE sales (
             sale_id INTEGER,
             product_id INTEGER,
@@ -40,7 +47,8 @@ def initialize_analytical_db():
             quantity INTEGER,
             revenue DECIMAL(10, 2)
         );
-    """)
+    """
+    )
 
     # sample data (few rows for testing)
     conn.execute("INSERT INTO products VALUES (1, 'Laptop', 'Electronics', 1200.00);")
@@ -49,10 +57,13 @@ def initialize_analytical_db():
     conn.execute("INSERT INTO products VALUES (4, 'Monitor', 'Electronics', 300.00);")
     conn.execute("INSERT INTO products VALUES (5, 'Desk', 'Furniture', 150.00);")
 
-
-    conn.execute("INSERT INTO customers VALUES (101, 'Alice Smith', 'New York', 'USA');")
+    conn.execute(
+        "INSERT INTO customers VALUES (101, 'Alice Smith', 'New York', 'USA');"
+    )
     conn.execute("INSERT INTO customers VALUES (102, 'Bob Johnson', 'London', 'UK');")
-    conn.execute("INSERT INTO customers VALUES (103, 'Charlie Brown', 'Paris', 'France');")
+    conn.execute(
+        "INSERT INTO customers VALUES (103, 'Charlie Brown', 'Paris', 'France');"
+    )
 
     conn.execute("INSERT INTO sales VALUES (1, 1, 101, '2024-01-05', 1, 1200.00);")
     conn.execute("INSERT INTO sales VALUES (2, 2, 101, '2024-01-05', 2, 50.00);")
@@ -62,16 +73,17 @@ def initialize_analytical_db():
     conn.execute("INSERT INTO sales VALUES (6, 4, 101, '2024-01-22', 1, 300.00);")
     conn.execute("INSERT INTO sales VALUES (7, 1, 103, '2024-01-25', 2, 2400.00);")
 
-
     conn.close()
     print(f"Analytical database initialized at {DB_PATH}")
+
 
 def initialize_query_logs_db():
     """Initializes the query logs DuckDB database."""
     conn = duckdb.connect(database=LOG_DB_PATH, read_only=False)
 
     conn.execute("DROP TABLE IF EXISTS query_logs;")
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE query_logs (
             log_id UUID PRIMARY KEY DEFAULT uuid(),
             query_text VARCHAR,
@@ -88,16 +100,20 @@ def initialize_query_logs_db():
             estimated_cost DOUBLE -- Placeholder for ML prediction
             -- Add more features as needed based on your sqlglot parsing
         );
-    """)
+    """
+    )
     conn.close()
     print(f"Query logs database initialized at {LOG_DB_PATH}")
+
 
 if __name__ == "__main__":
     initialize_analytical_db()
     initialize_query_logs_db()
 
     conn_analytic = duckdb.connect(database=DB_PATH, read_only=True)
-    print("\nTables in analytical_db:", conn_analytic.execute("SHOW TABLES;").fetchall())
+    print(
+        "\nTables in analytical_db:", conn_analytic.execute("SHOW TABLES;").fetchall()
+    )
     conn_analytic.close()
 
     conn_logs = duckdb.connect(database=LOG_DB_PATH, read_only=True)
