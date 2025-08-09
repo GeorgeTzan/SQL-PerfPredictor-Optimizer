@@ -19,4 +19,7 @@ dependencies = [
     "requests",
     "dash-table>=5.0.0",
     "dash-bootstrap-components>=2.0.3",
+    "statsmodels>=0.14.5",
+    "matplotlib>=3.10.3",
+    "seaborn>=0.13.2",
 ]
