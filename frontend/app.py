@@ -1,389 +1,562 @@
-import random
-import sys
-import os
+import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
-from dash import Dash, Input, Output, State, dash_table, dcc, html, callback_context
-import dash
+from dash import Dash, Input, Output, State, dash_table, dcc, html
 
 THEME = dbc.themes.DARKLY
 app = Dash(
     __name__,
     external_stylesheets=[THEME],
     title="SQL-QPPO - Universal DB Analytics",
+    suppress_callback_exceptions=True,
 )
 
-app.layout = dbc.Container(
+
+def create_login_screen():
+    return html.Div(
+        [
+            html.Div(
+                id="matrix-container",
+                style={
+                    "position": "fixed",
+                    "top": "0",
+                    "left": "0",
+                    "width": "100%",
+                    "height": "100%",
+                    "background": "black",
+                    "overflow": "hidden",
+                    "z-index": "1",
+                    "min-width": "100vw",
+                    "min-height": "100vh",
+                },
+            ),
+            html.Div(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H2(
+                                        "SQL PERFORMANCE PREDICTOR & OPTIMIZER",
+                                        style={
+                                            "color": "#00ff00",
+                                            "text-align": "center",
+                                            "font-family": "Courier New, monospace",
+                                            "text-shadow": "0 0 10px #00ff00",
+                                            "margin-bottom": "20px",
+                                        },
+                                    ),
+                                    html.Hr(style={"border-color": "#00ff00"}),
+                                    dbc.InputGroup(
+                                        [
+                                            dbc.InputGroupText("USER:"),
+                                            dbc.Input(
+                                                id="username-input",
+                                                placeholder="Enter username...",
+                                            ),
+                                        ],
+                                        className="mb-3",
+                                    ),
+                                    dbc.InputGroup(
+                                        [
+                                            dbc.InputGroupText("PASS:"),
+                                            dbc.Input(
+                                                id="password-input",
+                                                type="password",
+                                                placeholder="Enter password...",
+                                            ),
+                                        ],
+                                        className="mb-3",
+                                    ),
+                                    dbc.Button(
+                                        ">>> ACCESS SYSTEM <<<",
+                                        id="login-button",
+                                        className="w-100",
+                                    ),
+                                    html.Div(
+                                        id="login-message-container", className="mt-3"
+                                    ),
+                                ]
+                            )
+                        ]
+                    )
+                ],
+                style={
+                    "position": "fixed",
+                    "top": "50%",
+                    "left": "50%",
+                    "transform": "translate(-50%, -50%)",
+                    "z-index": "1000",
+                    "width": "400px",
+                },
+            ),
+        ]
+    )
+
+
+def create_main_app():
+    return dbc.Container(
+        [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Button(
+                                "Logout",
+                                id="logout-button",
+                                color="danger",
+                                size="sm",
+                                className="mb-3",
+                            )
+                        ],
+                        width="auto",
+                        className="ms-auto",
+                    )
+                ]
+            ),
+            dcc.Store(id="prediction-store"),
+            dcc.Store(id="execution-results-store"),
+            dcc.Interval(
+                id="prediction-interval", interval=1000, n_intervals=0, disabled=True
+            ),
+            html.H1(
+                "SQL Query Performance Predictor & Optimizer",
+                className="text-primary my-4 text-center",
+            ),
+            dbc.Alert(
+                [
+                    "Select any DuckDB database and trained ML model to predict and optimize SQL queries."
+                ],
+                color="info",
+                className="mb-4",
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader(
+                                        [
+                                            html.H3(
+                                                "Database & Model Selection",
+                                                className="mb-0",
+                                            ),
+                                            dbc.Badge(
+                                                "Connected",
+                                                color="success",
+                                                id="db-status-badge",
+                                                className="ms-2",
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.CardBody(
+                                        [
+                                            dcc.Dropdown(
+                                                id="db-selector",
+                                                options=[],
+                                                placeholder="Select a database (.duckdb file)",
+                                                clearable=False,
+                                                style={"width": "100%"},
+                                                persistence=True,
+                                                persistence_type="local",
+                                            ),
+                                            html.Div(
+                                                id="db-selection-status",
+                                                className="text-info mt-2",
+                                            ),
+                                            dcc.Dropdown(
+                                                id="model-selector",
+                                                options=[],
+                                                placeholder="Select a trained ML model",
+                                                clearable=False,
+                                                style={"width": "100%"},
+                                                persistence=True,
+                                                persistence_type="local",
+                                            ),
+                                            html.Div(
+                                                id="model-selection-status",
+                                                className="text-info mt-2",
+                                            ),
+                                        ]
+                                    ),
+                                ],
+                                className="mb-4",
+                            ),
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader(
+                                        [
+                                            html.H3(
+                                                "Real-time Query Analysis",
+                                                className="mb-0",
+                                            ),
+                                            dbc.Badge(
+                                                "Ready",
+                                                color="info",
+                                                id="analysis-status",
+                                                className="ms-2",
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.CardBody(
+                                        [
+                                            html.Label(
+                                                "Estimated Cost:",
+                                                className="fw-bold text-warning",
+                                            ),
+                                            html.H4(
+                                                id="realtime-cost",
+                                                children="Type a query...",
+                                                className="text-warning mb-2",
+                                            ),
+                                            html.Label(
+                                                "Query Complexity:",
+                                                className="fw-bold text-info",
+                                            ),
+                                            html.P(
+                                                id="complexity-score",
+                                                children="N/A",
+                                                className="text-info mb-2",
+                                            ),
+                                            html.Label(
+                                                "Optimization Level:",
+                                                className="fw-bold",
+                                            ),
+                                            dbc.Progress(
+                                                id="optimization-progress",
+                                                value=0,
+                                                className="mb-2",
+                                            ),
+                                            html.Small(
+                                                "Higher is better",
+                                                className="text-muted",
+                                            ),
+                                        ]
+                                    ),
+                                ],
+                                className="mb-4",
+                            ),
+                        ],
+                        width=4,
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader(
+                                        [
+                                            html.H3(
+                                                "SQL Query Editor", className="mb-0"
+                                            ),
+                                            dbc.ButtonGroup(
+                                                [
+                                                    dbc.Button(
+                                                        "Execute",
+                                                        id="execute-button",
+                                                        color="primary",
+                                                        size="sm",
+                                                    ),
+                                                    dbc.Button(
+                                                        "Clear",
+                                                        id="clear-button",
+                                                        color="secondary",
+                                                        size="sm",
+                                                    ),
+                                                ],
+                                                className="ms-auto",
+                                            ),
+                                        ]
+                                    ),
+                                    dbc.CardBody(
+                                        [
+                                            dcc.Textarea(
+                                                id="sql-input",
+                                                value="SELECT * FROM my_table LIMIT 10;",
+                                                style={
+                                                    "width": "100%",
+                                                    "height": 200,
+                                                    "backgroundColor": "#2b3035",
+                                                    "color": "#f8f9fa",
+                                                    "fontFamily": "Monaco, Consolas, monospace",
+                                                    "fontSize": "14px",
+                                                    "border": "2px solid #495057",
+                                                    "borderRadius": "8px",
+                                                    "padding": "12px",
+                                                    "resize": "vertical",
+                                                },
+                                                placeholder="Enter your SQL query here...",
+                                            ),
+                                            html.Div(
+                                                [
+                                                    dbc.Alert(
+                                                        id="syntax-alert",
+                                                        is_open=False,
+                                                        dismissable=True,
+                                                        className="mt-2",
+                                                    ),
+                                                    html.Div(
+                                                        id="query-suggestions",
+                                                        className="mt-2",
+                                                    ),
+                                                ]
+                                            ),
+                                        ]
+                                    ),
+                                ],
+                                className="mb-4",
+                            ),
+                        ],
+                        width=8,
+                    ),
+                ]
+            ),
+            dbc.Card(
+                [
+                    dbc.CardHeader(
+                        [
+                            html.H3("Execution Results", className="mb-0"),
+                            dbc.Badge(
+                                "Idle",
+                                color="secondary",
+                                id="execution-status",
+                                className="ms-2",
+                            ),
+                        ]
+                    ),
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            html.Div(
+                                                id="output-message",
+                                                className="alert alert-success",
+                                                style={"display": "none"},
+                                            ),
+                                            html.Div(
+                                                id="error-message",
+                                                className="alert alert-danger",
+                                                style={"display": "none"},
+                                            ),
+                                        ],
+                                        width=12,
+                                    )
+                                ]
+                            ),
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        dbc.Card(
+                                            dbc.CardBody(
+                                                [
+                                                    html.H5(
+                                                        "⏱️ Execution Time",
+                                                        className="card-title text-primary",
+                                                    ),
+                                                    html.H3(
+                                                        id="execution-time",
+                                                        children="--",
+                                                        className="text-primary",
+                                                    ),
+                                                ]
+                                            )
+                                        )
+                                    ),
+                                    dbc.Col(
+                                        dbc.Card(
+                                            dbc.CardBody(
+                                                [
+                                                    html.H5(
+                                                        "📊 Result Rows",
+                                                        className="card-title text-success",
+                                                    ),
+                                                    html.H3(
+                                                        id="result-rows",
+                                                        children="--",
+                                                        className="text-success",
+                                                    ),
+                                                ]
+                                            )
+                                        )
+                                    ),
+                                    dbc.Col(
+                                        dbc.Card(
+                                            dbc.CardBody(
+                                                [
+                                                    html.H5(
+                                                        "🤖 Predicted Cost",
+                                                        className="card-title text-warning",
+                                                    ),
+                                                    html.H3(
+                                                        id="estimated-cost-display",
+                                                        children="--",
+                                                        className="text-warning",
+                                                    ),
+                                                ]
+                                            )
+                                        )
+                                    ),
+                                    dbc.Col(
+                                        dbc.Card(
+                                            dbc.CardBody(
+                                                [
+                                                    html.H5(
+                                                        "🎯 Accuracy",
+                                                        className="card-title text-info",
+                                                    ),
+                                                    html.H3(
+                                                        id="prediction-accuracy",
+                                                        children="--",
+                                                        className="text-info",
+                                                    ),
+                                                ]
+                                            )
+                                        )
+                                    ),
+                                ],
+                                className="mb-4",
+                            ),
+                            dbc.Tabs(
+                                [
+                                    dbc.Tab(
+                                        label="📋 Query Results", tab_id="results-tab"
+                                    ),
+                                    dbc.Tab(
+                                        label="🔍 Query Features", tab_id="features-tab"
+                                    ),
+                                    dbc.Tab(
+                                        label="💡 Optimization Tips",
+                                        tab_id="optimization-tab",
+                                    ),
+                                ],
+                                id="result-tabs",
+                                active_tab="results-tab",
+                            ),
+                            html.Div(id="tab-content", className="mt-3"),
+                        ]
+                    ),
+                ],
+                className="mb-4",
+            ),
+            dbc.Card(
+                [
+                    dbc.CardHeader(
+                        [
+                            html.H3("📈 Performance Analytics", className="mb-0"),
+                            dbc.ButtonGroup(
+                                [
+                                    dbc.Button(
+                                        "Refresh",
+                                        id="refresh-graph-button",
+                                        color="secondary",
+                                        size="sm",
+                                    ),
+                                ],
+                                className="ms-auto",
+                            ),
+                        ]
+                    ),
+                    dbc.CardBody(
+                        [
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        dcc.Graph(
+                                            id="performance-graph",
+                                            style={"height": "400px"},
+                                        ),
+                                        width=8,
+                                    ),
+                                    dbc.Col(
+                                        dcc.Graph(
+                                            id="feature-importance-graph",
+                                            style={"height": "400px"},
+                                        ),
+                                        width=4,
+                                    ),
+                                ]
+                            )
+                        ]
+                    ),
+                ],
+                className="mb-4",
+            ),
+        ],
+        fluid=True,
+        className="p-4",
+    )
+
+
+app.layout = html.Div(
     [
-        dcc.Store(id="prediction-store"),
-        dcc.Store(id="execution-results-store"),
-        dcc.Interval(
-            id="prediction-interval", interval=1000, n_intervals=0, disabled=True
-        ),
-        html.H1(
-            "SQL Query Performance Predictor & Optimizer",
-            className="text-primary my-4 text-center",
-        ),
-        dbc.Alert(
-            [
-                "Select any DuckDB database and trained ML model to predict and optimize SQL queries."
-            ],
-            color="info",
-            className="mb-4",
-        ),
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        dbc.Card(
-                            [
-                                dbc.CardHeader(
-                                    [
-                                        html.H3(
-                                            "Database & Model Selection",
-                                            className="mb-0",
-                                        ),
-                                        dbc.Badge(
-                                            "Connected",
-                                            color="success",
-                                            id="db-status-badge",
-                                            className="ms-2",
-                                        ),
-                                    ]
-                                ),
-                                dbc.CardBody(
-                                    [
-                                        dcc.Dropdown(
-                                            id="db-selector",
-                                            options=[],
-                                            placeholder="Select a database (.duckdb file)",
-                                            clearable=False,
-                                            style={"width": "100%"},
-                                            persistence=True,
-                                            persistence_type="local",
-                                        ),
-                                        html.Div(
-                                            id="db-selection-status",
-                                            className="text-info mt-2",
-                                        ),
-                                        dcc.Dropdown(
-                                            id="model-selector",
-                                            options=[],
-                                            placeholder="Select a trained ML model",
-                                            clearable=False,
-                                            style={"width": "100%"},
-                                            persistence=True,
-                                            persistence_type="local",
-                                        ),
-                                        html.Div(
-                                            id="model-selection-status",
-                                            className="text-info mt-2",
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        dbc.Card(
-                            [
-                                dbc.CardHeader(
-                                    [
-                                        html.H3(
-                                            "Real-time Query Analysis", className="mb-0"
-                                        ),
-                                        dbc.Badge(
-                                            "Ready",
-                                            color="info",
-                                            id="analysis-status",
-                                            className="ms-2",
-                                        ),
-                                    ]
-                                ),
-                                dbc.CardBody(
-                                    [
-                                        html.Label(
-                                            "Estimated Cost:",
-                                            className="fw-bold text-warning",
-                                        ),
-                                        html.H4(
-                                            id="realtime-cost",
-                                            children="Type a query...",
-                                            className="text-warning mb-2",
-                                        ),
-                                        html.Label(
-                                            "Query Complexity:",
-                                            className="fw-bold text-info",
-                                        ),
-                                        html.P(
-                                            id="complexity-score",
-                                            children="N/A",
-                                            className="text-info mb-2",
-                                        ),
-                                        html.Label(
-                                            "Optimization Level:", className="fw-bold"
-                                        ),
-                                        dbc.Progress(
-                                            id="optimization-progress",
-                                            value=0,
-                                            className="mb-2",
-                                        ),
-                                        html.Small(
-                                            "Higher is better", className="text-muted"
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                    ],
-                    width=4,
-                ),
-                dbc.Col(
-                    [
-                        dbc.Card(
-                            [
-                                dbc.CardHeader(
-                                    [
-                                        html.H3("SQL Query Editor", className="mb-0"),
-                                        dbc.ButtonGroup(
-                                            [
-                                                dbc.Button(
-                                                    "Execute",
-                                                    id="execute-button",
-                                                    color="primary",
-                                                    size="sm",
-                                                ),
-                                                dbc.Button(
-                                                    "Clear",
-                                                    id="clear-button",
-                                                    color="secondary",
-                                                    size="sm",
-                                                ),
-                                            ],
-                                            className="ms-auto",
-                                        ),
-                                    ]
-                                ),
-                                dbc.CardBody(
-                                    [
-                                        dcc.Textarea(
-                                            id="sql-input",
-                                            value="SELECT * FROM my_table LIMIT 10;",
-                                            style={
-                                                "width": "100%",
-                                                "height": 200,
-                                                "backgroundColor": "#2b3035",
-                                                "color": "#f8f9fa",
-                                                "fontFamily": "Monaco, Consolas, monospace",
-                                                "fontSize": "14px",
-                                                "border": "2px solid #495057",
-                                                "borderRadius": "8px",
-                                                "padding": "12px",
-                                                "resize": "vertical",
-                                            },
-                                            placeholder="Enter your SQL query here...",
-                                        ),
-                                        html.Div(
-                                            [
-                                                dbc.Alert(
-                                                    id="syntax-alert",
-                                                    is_open=False,
-                                                    dismissable=True,
-                                                    className="mt-2",
-                                                ),
-                                                html.Div(
-                                                    id="query-suggestions",
-                                                    className="mt-2",
-                                                ),
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                    ],
-                    width=8,
-                ),
-            ]
-        ),
-        dbc.Card(
-            [
-                dbc.CardHeader(
-                    [
-                        html.H3("Execution Results", className="mb-0"),
-                        dbc.Badge(
-                            "Idle",
-                            color="secondary",
-                            id="execution-status",
-                            className="ms-2",
-                        ),
-                    ]
-                ),
-                dbc.CardBody(
-                    [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    [
-                                        html.Div(
-                                            id="output-message",
-                                            className="alert alert-success",
-                                            style={"display": "none"},
-                                        ),
-                                        html.Div(
-                                            id="error-message",
-                                            className="alert alert-danger",
-                                            style={"display": "none"},
-                                        ),
-                                    ],
-                                    width=12,
-                                )
-                            ]
-                        ),
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    dbc.Card(
-                                        dbc.CardBody(
-                                            [
-                                                html.H5(
-                                                    "⏱️ Execution Time",
-                                                    className="card-title text-primary",
-                                                ),
-                                                html.H3(
-                                                    id="execution-time",
-                                                    children="--",
-                                                    className="text-primary",
-                                                ),
-                                            ]
-                                        )
-                                    )
-                                ),
-                                dbc.Col(
-                                    dbc.Card(
-                                        dbc.CardBody(
-                                            [
-                                                html.H5(
-                                                    "📊 Result Rows",
-                                                    className="card-title text-success",
-                                                ),
-                                                html.H3(
-                                                    id="result-rows",
-                                                    children="--",
-                                                    className="text-success",
-                                                ),
-                                            ]
-                                        )
-                                    )
-                                ),
-                                dbc.Col(
-                                    dbc.Card(
-                                        dbc.CardBody(
-                                            [
-                                                html.H5(
-                                                    "🤖 Predicted Cost",
-                                                    className="card-title text-warning",
-                                                ),
-                                                html.H3(
-                                                    id="estimated-cost-display",
-                                                    children="--",
-                                                    className="text-warning",
-                                                ),
-                                            ]
-                                        )
-                                    )
-                                ),
-                                dbc.Col(
-                                    dbc.Card(
-                                        dbc.CardBody(
-                                            [
-                                                html.H5(
-                                                    "🎯 Accuracy",
-                                                    className="card-title text-info",
-                                                ),
-                                                html.H3(
-                                                    id="prediction-accuracy",
-                                                    children="--",
-                                                    className="text-info",
-                                                ),
-                                            ]
-                                        )
-                                    )
-                                ),
-                            ],
-                            className="mb-4",
-                        ),
-                        dbc.Tabs(
-                            [
-                                dbc.Tab(label="📋 Query Results", tab_id="results-tab"),
-                                dbc.Tab(
-                                    label="🔍 Query Features", tab_id="features-tab"
-                                ),
-                                dbc.Tab(
-                                    label="💡 Optimization Tips",
-                                    tab_id="optimization-tab",
-                                ),
-                            ],
-                            id="result-tabs",
-                            active_tab="results-tab",
-                        ),
-                        html.Div(id="tab-content", className="mt-3"),
-                    ]
-                ),
-            ],
-            className="mb-4",
-        ),
-        dbc.Card(
-            [
-                dbc.CardHeader(
-                    [
-                        html.H3("📈 Performance Analytics", className="mb-0"),
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button(
-                                    "Refresh",
-                                    id="refresh-graph-button",
-                                    color="secondary",
-                                    size="sm",
-                                ),
-                            ],
-                            className="ms-auto",
-                        ),
-                    ]
-                ),
-                dbc.CardBody(
-                    [
-                        dbc.Row(
-                            [
-                                dbc.Col(
-                                    dcc.Graph(
-                                        id="performance-graph",
-                                        style={"height": "400px"},
-                                    ),
-                                    width=8,
-                                ),
-                                dbc.Col(
-                                    dcc.Graph(
-                                        id="feature-importance-graph",
-                                        style={"height": "400px"},
-                                    ),
-                                    width=4,
-                                ),
-                            ]
-                        )
-                    ]
-                ),
-            ],
-            className="mb-4",
-        ),
-    ],
-    fluid=True,
-    className="p-4",
+        dcc.Store(id="login-store", storage_type="session", data={"logged_in": False}),
+        dcc.Store(id="login-message-store", data=""),
+        html.Div(id="main-content"),
+    ]
 )
+
+
+@app.callback(Output("main-content", "children"), Input("login-store", "data"))
+def display_content(login_data):
+    if login_data.get("logged_in", False):
+        return create_main_app()
+
+    return create_login_screen()
+
+
+@app.callback(
+    Output("login-message-container", "children"),
+    Input("login-message-store", "data"),
+)
+def render_login_message(message):
+    if not message:
+        return ""
+    return dbc.Alert(
+        message,
+        color="danger",
+        dismissable=True,
+        is_open=True,
+        duration=None,
+        style={
+            "background": "rgba(255,0,0,0.1)",
+            "border": "1px solid #ff0000",
+            "color": "#ff0000",
+            "font-family": "Courier New, monospace",
+            "margin-top": "10px",
+        },
+    )
+
+
+@app.callback(
+    [Output("login-store", "data"), Output("login-message-store", "data")],
+    Input("login-button", "n_clicks"),
+    [State("username-input", "value"), State("password-input", "value")],
+    prevent_initial_call=True,
+)
+def handle_login(n_clicks, username, password):
+    if not n_clicks:
+        return dash.no_update, dash.no_update
+
+    if username == "georgetzan" and password:
+        return {"logged_in": True}, ""
+    else:
+        return {"logged_in": False}, "ACCESS DENIED - Invalid credentials"
+
+
+@app.callback(
+    Output("login-store", "data", allow_duplicate=True),
+    Input("logout-button", "n_clicks"),
+    prevent_initial_call=True,
+)
+def handle_logout(n_clicks):
+    if n_clicks:
+        return {"logged_in": False}
+    return dash.no_update
 
 
 @app.callback(
@@ -395,8 +568,12 @@ app.layout = dbc.Container(
         Output("db-status-badge", "color"),
     ],
     Input("db-selector", "id"),
+    State("login-store", "data"),
 )
-def load_databases(_):
+def load_databases(_, login_data):
+    if not login_data.get("logged_in", False):
+        return [], None, "", "Logged Out", "secondary"
+
     try:
         response = requests.get("http://127.0.0.1:8000/list_databases/")
         response.raise_for_status()
@@ -422,8 +599,12 @@ def load_databases(_):
         Output("model-selection-status", "children"),
     ],
     Input("model-selector", "id"),
+    State("login-store", "data"),
 )
-def load_models(_):
+def load_models(_, login_data):
+    if not login_data.get("logged_in", False):
+        return [], None, ""
+
     try:
         response = requests.get("http://127.0.0.1:8000/list_models/")
         response.raise_for_status()
@@ -449,9 +630,16 @@ def load_models(_):
         Output("query-suggestions", "children"),
     ],
     [Input("sql-input", "value")],
-    [State("db-selector", "value"), State("model-selector", "value")],
+    [
+        State("db-selector", "value"),
+        State("model-selector", "value"),
+        State("login-store", "data"),
+    ],
 )
-def realtime_analysis(query_text, selected_db, selected_model):
+def realtime_analysis(query_text, selected_db, selected_model, login_data):
+    if not login_data.get("logged_in", False):
+        return "Not logged in", "N/A", 0, "Offline", "danger", "", False, "info", ""
+
     if not query_text or not query_text.strip():
         return "Type a query...", "N/A", 0, "Ready", "info", "", False, "info", ""
     if not selected_db or not selected_model:
@@ -531,9 +719,27 @@ def realtime_analysis(query_text, selected_db, selected_model):
         State("sql-input", "value"),
         State("db-selector", "value"),
         State("model-selector", "value"),
+        State("login-store", "data"),
     ],
 )
-def handle_query_execution(n_clicks, query_text, selected_db, selected_model):
+def handle_query_execution(
+    n_clicks, query_text, selected_db, selected_model, login_data
+):
+    if not login_data.get("logged_in", False):
+        return (
+            "",
+            {"display": "none"},
+            "Please log in first.",
+            {"display": "block"},
+            "--",
+            "--",
+            "--",
+            "--",
+            "Offline",
+            "danger",
+            None,
+        )
+
     if not n_clicks:
         return (
             "",
@@ -623,8 +829,12 @@ def handle_query_execution(n_clicks, query_text, selected_db, selected_model):
 @app.callback(
     Output("tab-content", "children"),
     [Input("result-tabs", "active_tab"), Input("execution-results-store", "data")],
+    State("login-store", "data"),
 )
-def update_tab_content(active_tab, execution_results):
+def update_tab_content(active_tab, execution_results, login_data):
+    if not login_data.get("logged_in", False):
+        return html.P("Please log in first.", className="text-muted")
+
     if not execution_results:
         return html.P(
             "No execution results available. Please execute a query first.",
@@ -709,8 +919,30 @@ def update_tab_content(active_tab, execution_results):
 @app.callback(
     Output("performance-graph", "figure"),
     Input("refresh-graph-button", "n_clicks"),
+    State("login-store", "data"),
 )
-def update_performance_graph(_):
+def update_performance_graph(_, login_data):
+    if not login_data.get("logged_in", False):
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Please log in to view performance data.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            xanchor="center",
+            yanchor="middle",
+            showarrow=False,
+            font=dict(size=16, color="gray"),
+        )
+        fig.update_layout(
+            title="Query Performance Analytics",
+            template="plotly_dark",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+        )
+        return fig
+
     try:
         response = requests.get("http://127.0.0.1:8000/get_logs/")
         response.raise_for_status()
@@ -781,8 +1013,31 @@ def update_performance_graph(_):
 @app.callback(
     Output("feature-importance-graph", "figure"),
     Input("refresh-graph-button", "n_clicks"),
+    State("login-store", "data"),
 )
-def update_feature_importance_graph(_):
+def update_feature_importance_graph(_, login_data):
+    if not login_data.get("logged_in", False):
+        fig = go.Figure()
+        fig.add_annotation(
+            text="Please log in to view feature importance.",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            xanchor="center",
+            yanchor="middle",
+            showarrow=False,
+            font=dict(size=16, color="gray"),
+        )
+        fig.update_layout(
+            title="ML Model Feature Importance",
+            template="plotly_dark",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            height=400,
+        )
+        return fig
+
     try:
         response = requests.get("http://127.0.0.1:8000/get_feature_importance/")
         if response.status_code == 200:
